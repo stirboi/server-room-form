@@ -1,0 +1,278 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แบบฟอร์มการอนุมัติการเข้า-ออก และการเคลื่อนย้ายทรัพย์สิน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .form-content { max-width: 100%; }
+        .table-custom { border: 1px solid #000; border-collapse: collapse; width: 100%; }
+        .table-custom th, .table-custom td { border: 1px solid #000; padding: 8px; text-align: left; }
+        .table-custom th { background-color: #f2f2f2; }
+        .input-field { border: none; background: transparent; width: 100%; min-height: 1.5em; }
+        .textarea-field { border: none; background: transparent; width: 100%; min-height: 4em; white-space: pre-wrap; }
+        .select-field { border: none; background: transparent; width: 100%; }
+        @media print {
+            .no-print { display: none; }
+            .table-custom th, .table-custom td { border: 1px solid #000; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div id="form-content" class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg form-content">
+        <h1 class="text-2xl font-bold mb-6 text-center">แบบฟอร์มการอนุมัติการเข้า-ออก และการเคลื่อนย้ายทรัพย์สิน</h1>
+        <p class="text-center text-sm mb-4">(สำหรับการใช้งานภายใน)</p>
+
+        <!-- Section 1: ข้อมูลทั่วไป -->
+        <div class="mb-8">
+            <table class="table-custom">
+                <tr>
+                    <th colspan="2">NAME / SURNAME</th>
+                    <th>POSITION</th>
+                    <th>DEPARTMENT</th>
+                    <th>EMAIL</th>
+                </tr>
+                <tr>
+                    <td colspan="2"><input type="text" id="name-surname" class="w-full p-2 border rounded-md"></td>
+                    <td><input type="text" id="position" class="w-full p-2 border rounded-md"></td>
+                    <td><input type="text" id="department" class="w-full p-2 border rounded-md"></td>
+                    <td><input type="email" id="email" class="w-full p-2 border rounded-md"></td>
+                </tr>
+                <tr>
+                    <th>PHONE</th>
+                    <th colspan="2">DATA CENTER ROOM</th>
+                    <th>ENTRY DATE</th>
+                    <th>EXIT DATE</th>
+                </tr>
+                <tr>
+                    <td><input type="tel" id="phone" class="w-full p-2 border rounded-md"></td>
+                    <td colspan="2"><input type="text" id="data-center-room" class="w-full p-2 border rounded-md"></td>
+                    <td><input type="date" id="entry-date" class="w-full p-2 border rounded-md"></td>
+                    <td><input type="date" id="exit-date" class="w-full p-2 border rounded-md"></td>
+                </tr>
+                <tr>
+                    <th>TIME</th>
+                    <th colspan="2"></th>
+                    <th>TIME</th>
+                    <th></th>
+                </tr>
+                <tr>
+                    <td><input type="time" id="entry-time" class="w-full p-2 border rounded-md"></td>
+                    <td colspan="2"></td>
+                    <td><input type="time" id="exit-time" class="w-full p-2 border rounded-md"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th colspan="5">OBJECTIVE</th>
+                </tr>
+                <tr>
+                    <td colspan="5"><textarea id="objective" class="w-full p-2 border rounded-md" rows="4"></textarea></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Section 2: รายชื่อบุคคล -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">LIST OF PERSONNEL REQUESTING ENTRY AND EXIT OF THE COMPUTER ROOM</h2>
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th>NO</th>
+                        <th>NAME / SURNAME</th>
+                        <th>PHONE</th>
+                        <th>DEPARTMENT</th>
+                        <th>COMPANY NAME / EXTERNAL ORG.</th>
+                        <th class="no-print">การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="person-table">
+                    <tr>
+                        <td class="border p-2">1</td>
+                        <td><input type="text" class="w-full p-1"></td>
+                        <td><input type="text" class="w-full p-1"></td>
+                        <td><input type="text" class="w-full p-1"></td>
+                        <td><input type="text" class="w-full p-1"></td>
+                        <td class="border p-2 no-print"><button onclick="removeRow(this)" class="text-red-500">ลบ</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button onclick="addPersonRow()" class="mt-4 bg-blue-500 text-white p-2 rounded-md no-print">เพิ่มรายชื่อ</button>
+        </div>
+
+        <!-- Section 3: อุปกรณ์ -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">EQUIPMENT USED FOR OPERATIONS (SPECIFY)</h2>
+            <p class="text-sm mb-2">Note: 1. In cases where there are more than 5 samples requesting entry and exit, please prepare an attachment.</p>
+            <p class="text-sm mb-2">2. Tools used for operations (provide additional details on the back).</p>
+            <textarea id="equipment" class="w-full p-2 border rounded-md" rows="4"></textarea>
+        </div>
+
+        <!-- Section 4: ลายเซ็น -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">REQUESTER</h2>
+            <table class="table-custom">
+                <tr>
+                    <th>REQUESTER</th>
+                    <th>COLLATOR</th>
+                    <th>APPROVER</th>
+                </tr>
+                <tr>
+                    <td><input type="text" id="requester-signature" class="w-full p-2 border rounded-md" placeholder="Signed"></td>
+                    <td><input type="text" id="collator-signature" class="w-full p-2 border rounded-md" placeholder="Signed"></td>
+                    <td>
+                        <input type="text" id="approver-signature" class="w-full p-2 border rounded-md" placeholder="Signed">
+                        <select id="approval-status" class="w-full p-2 border rounded-md mt-2">
+                            <option value="approved">Approved</option>
+                            <option value="not-approved">Not Approved</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Position: <input type="text" id="requester-position" class="w-full p-2 border rounded-md"></th>
+                    <th>Position: <input type="text" id="collator-position" class="w-full p-2 border rounded-md"></th>
+                    <th>Position: <input type="text" id="approver-position" class="w-full p-2 border rounded-md"></th>
+                </tr>
+                <tr>
+                    <th>Date: <input type="date" id="requester-date" class="w-full p-2 border rounded-md"></th>
+                    <th>Date: <input type="date" id="collator-date" class="w-full p-2 border rounded-md"></th>
+                    <th>Date: <input type="date" id="approver-date" class="w-full p-2 border rounded-md"></th>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ปุ่ม Export PDF -->
+        <div class="text-center">
+            <button onclick="exportToPDF()" class="bg-purple-500 text-white p-2 rounded-md no-print">Export เป็น PDF</button>
+        </div>
+    </div>
+
+    <script>
+        function addPersonRow() {
+            const table = document.getElementById('person-table');
+            const rowCount = table.rows.length + 1;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="border p-2">${rowCount}</td>
+                <td><input type="text" class="w-full p-1"></td>
+                <td><input type="text" class="w-full p-1"></td>
+                <td><input type="text" class="w-full p-1"></td>
+                <td><input type="text" class="w-full p-1"></td>
+                <td class="border p-2 no-print"><button onclick="removeRow(this)" class="text-red-500">ลบ</button></td>
+            `;
+            table.appendChild(row);
+        }
+
+        function removeRow(button) {
+            if (document.getElementById('person-table').rows.length > 1) {
+                button.parentElement.parentElement.remove();
+                // อัปเดตหมายเลขแถว
+                const rows = document.getElementById('person-table').rows;
+                for (let i = 0; i < rows.length; i++) {
+                    rows[i].cells[0].textContent = i + 1;
+                }
+            } else {
+                alert('ต้องมีอย่างน้อย 1 รายชื่อ');
+            }
+        }
+
+        function prepareForPDF() {
+            const clone = document.getElementById('form-content').cloneNode(true);
+
+            clone.querySelectorAll('input').forEach(input => {
+                const div = document.createElement('div');
+                div.className = 'input-field';
+                div.textContent = input.value || '-';
+                input.parentNode.replaceChild(div, input);
+            });
+
+            clone.querySelectorAll('textarea').forEach(textarea => {
+                const div = document.createElement('div');
+                div.className = 'textarea-field';
+                div.textContent = textarea.value || '-';
+                textarea.parentNode.replaceChild(div, textarea);
+            });
+
+            clone.querySelectorAll('select').forEach(select => {
+                const div = document.createElement('div');
+                div.className = 'select-field';
+                div.textContent = select.options[select.selectedIndex]?.text || '-';
+                select.parentNode.replaceChild(div, select);
+            });
+
+            return clone;
+        }
+
+        async function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const element = prepareForPDF();
+            document.body.appendChild(element);
+
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                width: 794,
+                windowWidth: 794
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = doc.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            doc.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            doc.save('ServerRoomAccessForm.pdf');
+
+            document.body.removeChild(element);
+        }
+    </script>
+</body>
+</html>
